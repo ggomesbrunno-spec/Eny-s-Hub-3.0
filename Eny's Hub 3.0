@@ -1,0 +1,575 @@
+--// Eny's Hub 3.0 - Simples
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local Lighting = game:GetService("Lighting")
+local RunService = game:GetService("RunService")
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+local Player = Players.LocalPlayer
+local PlayerGui = Player:WaitForChild("PlayerGui")
+
+local Settings = {ThemeColor = Color3.fromRGB(255, 182, 193), Transparency = 0.12, HubOpen = true}
+local ValidKeys = {"ENY","GOAO","YUMI","MIMI"}
+
+-- HIGHLIGHT SYSTEM
+local HighlightSystem = {Enabled = false, Highlights = {}, BillboardGuis = {}}
+
+local function CreateHighlight(targetPlayer)
+	if not targetPlayer or targetPlayer == Player then return end
+	local character = targetPlayer.Character
+	if not character then return end
+	if HighlightSystem.Highlights[targetPlayer] then HighlightSystem.Highlights[targetPlayer]:Destroy() HighlightSystem.Highlights[targetPlayer] = nil end
+	if HighlightSystem.BillboardGuis[targetPlayer] then HighlightSystem.BillboardGuis[targetPlayer]:Destroy() HighlightSystem.BillboardGuis[targetPlayer] = nil end
+	local highlight = Instance.new("Highlight")
+	highlight.FillColor = Color3.fromRGB(255, 182, 193)
+	highlight.FillTransparency = 0.5
+	highlight.OutlineColor = Color3.fromRGB(255, 105, 180)
+	highlight.OutlineTransparency = 0
+	highlight.DepthMode = Enum.HighlightDepthMode.AlwaysOnTop
+	highlight.Parent = character
+	local billboard = Instance.new("BillboardGui")
+	billboard.Size = UDim2.new(0, 200, 0, 30)
+	billboard.StudsOffset = Vector3.new(0, 3, 0)
+	billboard.AlwaysOnTop = true
+	billboard.Parent = character:WaitForChild("Head")
+	local nameLabel = Instance.new("TextLabel")
+	nameLabel.Size = UDim2.new(1, 0, 1, 0)
+	nameLabel.BackgroundTransparency = 1
+	nameLabel.Text = targetPlayer.Name
+	nameLabel.TextColor3 = Color3.fromRGB(255, 105, 180)
+	nameLabel.TextSize = 14
+	nameLabel.Font = Enum.Font.GothamBold
+	nameLabel.TextStrokeTransparency = 0.5
+	nameLabel.TextStrokeColor3 = Color3.new(0, 0, 0)
+	nameLabel.Parent = billboard
+	HighlightSystem.Highlights[targetPlayer] = highlight
+	HighlightSystem.BillboardGuis[targetPlayer] = billboard
+end
+
+local function RemoveHighlight(targetPlayer)
+	if not targetPlayer then return end
+	if HighlightSystem.Highlights[targetPlayer] then HighlightSystem.Highlights[targetPlayer]:Destroy() HighlightSystem.Highlights[targetPlayer] = nil end
+	if HighlightSystem.BillboardGuis[targetPlayer] then HighlightSystem.BillboardGuis[targetPlayer]:Destroy() HighlightSystem.BillboardGuis[targetPlayer] = nil end
+end
+
+local function UpdateHighlights()
+	for _, targetPlayer in pairs(Players:GetPlayers()) do
+		if targetPlayer ~= Player then
+			if HighlightSystem.Enabled then CreateHighlight(targetPlayer) else RemoveHighlight(targetPlayer) end
+		end
+	end
+end
+
+Players.PlayerAdded:Connect(function(targetPlayer)
+	if HighlightSystem.Enabled then targetPlayer.CharacterAdded:Connect(function() CreateHighlight(targetPlayer) end) end
+end)
+Players.PlayerRemoving:Connect(function(targetPlayer) RemoveHighlight(targetPlayer) end)
+
+-- FPS DISPLAY
+local FPSDisplay = false
+local FPSLabel = nil
+local FPSCount = 0
+local FPSTimer = 0
+
+-- INFINITE JUMP
+local InfiniteJump = false
+local InfiniteJumpConnection
+
+-- ANTI AFK SUAVE
+local AntiAFK = false
+local AntiAFKConnection
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = "EnyHub3"
+ScreenGui.ResetOnSpawn = false
+ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+ScreenGui.Parent = PlayerGui
+
+-- TELA DE KEY
+local KeyScreen = Instance.new("Frame")
+KeyScreen.Size = UDim2.fromOffset(400, 250)
+KeyScreen.Position = UDim2.new(0.5, -200, 0.5, -125)
+KeyScreen.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+KeyScreen.BackgroundTransparency = Settings.Transparency
+KeyScreen.BorderSizePixel = 0
+KeyScreen.Visible = true
+KeyScreen.Parent = ScreenGui
+
+local KeyCorner = Instance.new("UICorner")
+KeyCorner.CornerRadius = UDim.new(0, 12)
+KeyCorner.Parent = KeyScreen
+
+local KeyStroke = Instance.new("UIStroke")
+KeyStroke.Color = Settings.ThemeColor
+KeyStroke.Thickness = 1.5
+KeyStroke.Transparency = 0.35
+KeyStroke.Parent = KeyScreen
+
+local KeyTitle = Instance.new("TextLabel")
+KeyTitle.Position = UDim2.fromOffset(20, 10)
+KeyTitle.Size = UDim2.new(1, -40, 0, 40)
+KeyTitle.BackgroundTransparency = 1
+KeyTitle.Text = "ENY'S HUB 3.0"
+KeyTitle.TextColor3 = Settings.ThemeColor
+KeyTitle.TextSize = 20
+KeyTitle.Font = Enum.Font.GothamBold
+KeyTitle.TextXAlignment = Enum.TextXAlignment.Center
+KeyTitle.Parent = KeyScreen
+
+local KeyDesc = Instance.new("TextLabel")
+KeyDesc.Position = UDim2.fromOffset(20, 55)
+KeyDesc.Size = UDim2.new(1, -40, 0, 50)
+KeyDesc.BackgroundTransparency = 1
+KeyDesc.Text = "Enter your key to access the Hub"
+KeyDesc.TextColor3 = Color3.fromRGB(200,200,205)
+KeyDesc.TextSize = 14
+KeyDesc.Font = Enum.Font.GothamMedium
+KeyDesc.TextXAlignment = Enum.TextXAlignment.Center
+KeyDesc.Parent = KeyScreen
+
+local KeyInput = Instance.new("TextBox")
+KeyInput.Position = UDim2.fromOffset(40, 115)
+KeyInput.Size = UDim2.new(1, -80, 0, 40)
+KeyInput.BackgroundColor3 = Color3.fromRGB(40,40,46)
+KeyInput.Text = ""
+KeyInput.PlaceholderText = "Type your key..."
+KeyInput.PlaceholderColor3 = Color3.fromRGB(150,150,155)
+KeyInput.TextColor3 = Color3.new(1,1,1)
+KeyInput.TextSize = 14
+KeyInput.Font = Enum.Font.GothamMedium
+KeyInput.TextXAlignment = Enum.TextXAlignment.Center
+KeyInput.ClearTextOnFocus = false
+KeyInput.Parent = KeyScreen
+
+local KeyInputCorner = Instance.new("UICorner")
+KeyInputCorner.CornerRadius = UDim.new(0, 8)
+KeyInputCorner.Parent = KeyInput
+
+local VerifyButton = Instance.new("TextButton")
+VerifyButton.Position = UDim2.fromOffset(40, 170)
+VerifyButton.Size = UDim2.new(1, -80, 0, 40)
+VerifyButton.BackgroundColor3 = Settings.ThemeColor
+VerifyButton.Text = "VERIFY"
+VerifyButton.TextColor3 = Color3.new(1,1,1)
+VerifyButton.TextSize = 14
+VerifyButton.Font = Enum.Font.GothamBold
+VerifyButton.AutoButtonColor = false
+VerifyButton.Parent = KeyScreen
+
+local VerifyCorner = Instance.new("UICorner")
+VerifyCorner.CornerRadius = UDim.new(0, 8)
+VerifyCorner.Parent = VerifyButton
+
+local ErrorLabel = Instance.new("TextLabel")
+ErrorLabel.Position = UDim2.fromOffset(20, 220)
+ErrorLabel.Size = UDim2.new(1, -40, 0, 20)
+ErrorLabel.BackgroundTransparency = 1
+ErrorLabel.Text = ""
+ErrorLabel.TextColor3 = Color3.fromRGB(255,80,80)
+ErrorLabel.TextSize = 12
+ErrorLabel.Font = Enum.Font.GothamMedium
+ErrorLabel.TextXAlignment = Enum.TextXAlignment.Center
+ErrorLabel.Visible = false
+ErrorLabel.Parent = KeyScreen
+
+-- BOTÃO FLUTUANTE
+local OpenButton = Instance.new("TextButton")
+OpenButton.Size = UDim2.fromOffset(48, 48)
+OpenButton.Position = UDim2.new(0, 18, 0.5, -24)
+OpenButton.BackgroundColor3 = Settings.ThemeColor
+OpenButton.Text = "≡"
+OpenButton.TextColor3 = Color3.new(1,1,1)
+OpenButton.TextSize = 25
+OpenButton.Font = Enum.Font.GothamBold
+OpenButton.AutoButtonColor = false
+OpenButton.Visible = false
+OpenButton.Parent = ScreenGui
+
+local OpenCorner = Instance.new("UICorner")
+OpenCorner.CornerRadius = UDim.new(0, 12)
+OpenCorner.Parent = OpenButton
+
+-- JANELA PRINCIPAL
+local Main = Instance.new("Frame")
+Main.Size = UDim2.fromOffset(470, 300)
+Main.Position = UDim2.new(0.5, -235, 0.5, -150)
+Main.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+Main.BackgroundTransparency = Settings.Transparency
+Main.BorderSizePixel = 0
+Main.Visible = false
+Main.Parent = ScreenGui
+
+local MainCorner = Instance.new("UICorner")
+MainCorner.CornerRadius = UDim.new(0, 12)
+MainCorner.Parent = Main
+
+local Stroke = Instance.new("UIStroke")
+Stroke.Color = Settings.ThemeColor
+Stroke.Thickness = 1.5
+Stroke.Transparency = 0.35
+Stroke.Parent = Main
+
+local Top = Instance.new("Frame")
+Top.Size = UDim2.new(1, 0, 0, 48)
+Top.BackgroundTransparency = 1
+Top.Parent = Main
+
+local Title = Instance.new("TextLabel")
+Title.Position = UDim2.fromOffset(18, 5)
+Title.Size = UDim2.new(1, -100, 0, 38)
+Title.BackgroundTransparency = 1
+Title.Text = "Eny's Hub 3.0"
+Title.TextColor3 = Color3.new(1,1,1)
+Title.TextSize = 18
+Title.Font = Enum.Font.GothamBold
+Title.TextXAlignment = Enum.TextXAlignment.Left
+Title.Parent = Top
+
+local Close = Instance.new("TextButton")
+Close.Size = UDim2.fromOffset(32, 32)
+Close.Position = UDim2.new(1, -42, 0, 8)
+Close.BackgroundColor3 = Color3.fromRGB(45,45,50)
+Close.Text = "×"
+Close.TextColor3 = Color3.new(1,1,1)
+Close.TextSize = 22
+Close.Font = Enum.Font.GothamBold
+Close.AutoButtonColor = false
+Close.Parent = Top
+
+local CloseCorner = Instance.new("UICorner")
+CloseCorner.CornerRadius = UDim.new(0, 8)
+CloseCorner.Parent = Close
+
+-- CONTEÚDO
+local Content = Instance.new("ScrollingFrame")
+Content.Position = UDim2.fromOffset(10, 55)
+Content.Size = UDim2.new(1, -20, 1, -65)
+Content.BackgroundTransparency = 1
+Content.BorderSizePixel = 0
+Content.ScrollBarThickness = 3
+Content.CanvasSize = UDim2.new(0,0,0,0)
+Content.Parent = Main
+
+local Layout = Instance.new("UIListLayout")
+Layout.Padding = UDim.new(0, 8)
+Layout.SortOrder = Enum.SortOrder.LayoutOrder
+Layout.Parent = Content
+
+local Padding = Instance.new("UIPadding")
+Padding.PaddingTop = UDim.new(0, 5)
+Padding.PaddingRight = UDim.new(0, 8)
+Padding.Parent = Content
+
+Layout:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	Content.CanvasSize = UDim2.new(0,0,0,Layout.AbsoluteContentSize.Y + 15)
+end)
+
+local ElementCount = 0
+
+local function CreateSection(Text)
+	ElementCount = ElementCount + 1
+	local Section = Instance.new("TextLabel")
+	Section.Size = UDim2.new(1, -5, 0, 30)
+	Section.BackgroundTransparency = 1
+	Section.Text = Text
+	Section.TextColor3 = Settings.ThemeColor
+	Section.TextSize = 15
+	Section.Font = Enum.Font.GothamBold
+	Section.TextXAlignment = Enum.TextXAlignment.Left
+	Section.LayoutOrder = ElementCount
+	Section.Parent = Content
+	return Section
+end
+
+local function CreateToggle(Text, Default, Callback)
+	ElementCount = ElementCount + 1
+	local Enabled = Default
+	local Button = Instance.new("TextButton")
+	Button.Size = UDim2.new(1, -5, 0, 42)
+	Button.BackgroundColor3 = Color3.fromRGB(40,40,46)
+	Button.Text = ""
+	Button.AutoButtonColor = false
+	Button.LayoutOrder = ElementCount
+	Button.Parent = Content
+	local Corner = Instance.new("UICorner")
+	Corner.CornerRadius = UDim.new(0, 8)
+	Corner.Parent = Button
+	local Label = Instance.new("TextLabel")
+	Label.Position = UDim2.fromOffset(12,0)
+	Label.Size = UDim2.new(1,-70,1,0)
+	Label.BackgroundTransparency = 1
+	Label.Text = Text
+	Label.TextColor3 = Color3.new(1,1,1)
+	Label.TextSize = 13
+	Label.Font = Enum.Font.GothamMedium
+	Label.TextXAlignment = Enum.TextXAlignment.Left
+	Label.Parent = Button
+	local Toggle = Instance.new("Frame")
+	Toggle.Size = UDim2.fromOffset(42,22)
+	Toggle.Position = UDim2.new(1,-54,0.5,-11)
+	Toggle.BackgroundColor3 = Color3.fromRGB(70,70,75)
+	Toggle.Parent = Button
+	local ToggleCorner = Instance.new("UICorner")
+	ToggleCorner.CornerRadius = UDim.new(1,0)
+	ToggleCorner.Parent = Toggle
+	local Circle = Instance.new("Frame")
+	Circle.Size = UDim2.fromOffset(18,18)
+	Circle.Position = UDim2.fromOffset(2,2)
+	Circle.BackgroundColor3 = Color3.new(1,1,1)
+	Circle.Parent = Toggle
+	local CircleCorner = Instance.new("UICorner")
+	CircleCorner.CornerRadius = UDim.new(1,0)
+	CircleCorner.Parent = Circle
+	local function Update()
+		if Enabled then
+			Toggle.BackgroundColor3 = Settings.ThemeColor
+			TweenService:Create(Circle, TweenInfo.new(0.15), {Position = UDim2.new(1,-20,0,2)}):Play()
+		else
+			Toggle.BackgroundColor3 = Color3.fromRGB(70,70,75)
+			TweenService:Create(Circle, TweenInfo.new(0.15), {Position = UDim2.fromOffset(2,2)}):Play()
+		end
+		if Callback then Callback(Enabled) end
+	end
+	Button.MouseButton1Click:Connect(function()
+		Enabled = not Enabled
+		Update()
+	end)
+	Update()
+	return Button
+end
+
+local function CreateSlider(Text, Min, Max, Default, Callback)
+	ElementCount = ElementCount + 1
+	local Frame = Instance.new("Frame")
+	Frame.Size = UDim2.new(1, -5, 0, 60)
+	Frame.BackgroundColor3 = Color3.fromRGB(40,40,46)
+	Frame.LayoutOrder = ElementCount
+	Frame.Parent = Content
+	local Corner = Instance.new("UICorner")
+	Corner.CornerRadius = UDim.new(0, 8)
+	Corner.Parent = Frame
+	local Label = Instance.new("TextLabel")
+	Label.Position = UDim2.fromOffset(12, 5)
+	Label.Size = UDim2.new(1, -24, 0, 20)
+	Label.BackgroundTransparency = 1
+	Label.Text = Text .. ": " .. Default
+	Label.TextColor3 = Color3.new(1,1,1)
+	Label.TextSize = 13
+	Label.Font = Enum.Font.GothamMedium
+	Label.TextXAlignment = Enum.TextXAlignment.Left
+	Label.Parent = Frame
+	local Slider = Instance.new("TextButton")
+	Slider.Position = UDim2.fromOffset(12, 30)
+	Slider.Size = UDim2.new(1, -24, 0, 20)
+	Slider.BackgroundColor3 = Color3.fromRGB(70,70,75)
+	Slider.Text = ""
+	Slider.AutoButtonColor = false
+	Slider.Parent = Frame
+	local SliderCorner = Instance.new("UICorner")
+	SliderCorner.CornerRadius = UDim.new(0, 10)
+	SliderCorner.Parent = Slider
+	local Fill = Instance.new("Frame")
+	Fill.Size = UDim2.new(((Default - Min) / (Max - Min)), 0, 1, 0)
+	Fill.BackgroundColor3 = Settings.ThemeColor
+	Fill.BorderSizePixel = 0
+	Fill.Parent = Slider
+	local FillCorner = Instance.new("UICorner")
+	FillCorner.CornerRadius = UDim.new(0, 10)
+	FillCorner.Parent = Fill
+	Slider.MouseButton1Down:Connect(function()
+		local MousePos = UserInputService:GetMouseLocation()
+		local SliderPos = Slider.AbsolutePosition
+		local SliderSize = Slider.AbsoluteSize
+		local Percent = math.clamp((MousePos.X - SliderPos.X) / SliderSize.X, 0, 1)
+		local Value = math.floor(Min + (Max - Min) * Percent)
+		Fill.Size = UDim2.new(Percent, 0, 1, 0)
+		Label.Text = Text .. ": " .. Value
+		if Callback then Callback(Value) end
+	end)
+	return Frame
+end
+
+-- FUNÇÕES
+CreateSection("Movement")
+CreateSlider("WalkSpeed", 16, 200, 16, function(Value)
+	local char = Player.Character
+	if char and char:FindFirstChild("Humanoid") then
+		char.Humanoid.WalkSpeed = Value
+	end
+end)
+
+CreateSlider("JumpPower", 50, 300, 50, function(Value)
+	local char = Player.Character
+	if char and char:FindFirstChild("Humanoid") then
+		char.Humanoid.JumpPower = Value
+	end
+end)
+
+CreateToggle("Infinite Jump", false, function(Value)
+	InfiniteJump = Value
+	if Value then
+		InfiniteJumpConnection = UserInputService.JumpRequest:Connect(function()
+			local char = Player.Character
+			if char and char:FindFirstChild("Humanoid") then
+				char.Humanoid:ChangeState(Enum.HumanoidStateType.Jumping)
+			end
+		end)
+	else
+		if InfiniteJumpConnection then
+			InfiniteJumpConnection:Disconnect()
+			InfiniteJumpConnection = nil
+		end
+	end
+end)
+
+CreateSection("Visual")
+CreateToggle("Highlights Players", false, function(Value)
+	HighlightSystem.Enabled = Value
+	UpdateHighlights()
+end)
+
+CreateToggle("Fullbright", false, function(Value)
+	if Value then
+		Lighting.Brightness = 2
+		Lighting.ClockTime = 14
+		Lighting.FogEnd = 100000
+		Lighting.GlobalShadows = false
+	else
+		Lighting.Brightness = 1
+		Lighting.ClockTime = 14
+		Lighting.FogEnd = 100000
+		Lighting.GlobalShadows = true
+	end
+end)
+
+CreateSection("Optimization")
+CreateToggle("Low Graphics", false, function(Value)
+	if Value then
+		workspace.Terrain.WaterWaveSize = 0
+		workspace.Terrain.WaterWaveSpeed = 0
+		Lighting.GlobalShadows = false
+		Lighting.FogEnd = 100
+	else
+		workspace.Terrain.WaterWaveSize = 0.2
+		workspace.Terrain.WaterWaveSpeed = 14
+		Lighting.GlobalShadows = true
+		Lighting.FogEnd = 100000
+	end
+end)
+
+CreateSection("Utility")
+CreateToggle("Anti AFK", false, function(Value)
+	AntiAFK = Value
+	if Value then
+		AntiAFKConnection = RunService.Heartbeat:Connect(function()
+			local char = Player.Character
+			if char and char:FindFirstChild("Humanoid") then
+				char.Humanoid.AutoRotate = true
+			end
+		end)
+	else
+		if AntiAFKConnection then
+			AntiAFKConnection:Disconnect()
+			AntiAFKConnection = nil
+		end
+	end
+end)
+
+CreateToggle("FPS Display", false, function(Value)
+	FPSDisplay = Value
+	if Value then
+		if not FPSLabel then
+			FPSLabel = Instance.new("TextLabel")
+			FPSLabel.Size = UDim2.fromOffset(100, 30)
+			FPSLabel.Position = UDim2.new(1, -110, 0, 10)
+			FPSLabel.BackgroundColor3 = Color3.fromRGB(25, 25, 30)
+			FPSLabel.BackgroundTransparency = 0.3
+			FPSLabel.TextColor3 = Settings.ThemeColor
+			FPSLabel.TextSize = 14
+			FPSLabel.Font = Enum.Font.GothamBold
+			FPSLabel.Parent = ScreenGui
+		end
+		FPSLabel.Visible = true
+		FPSCount = 0
+		FPSTimer = 0
+	else
+		if FPSLabel then
+			FPSLabel.Visible = false
+		end
+	end
+end)
+
+CreateSection("Server")
+CreateToggle("Reset Character", false, function(Value)
+	if Value then
+		local char = Player.Character
+		if char and char:FindFirstChild("Humanoid") then
+			char.Humanoid.Health = 0
+		end
+	end
+end)
+
+CreateToggle("Rejoin", false, function(Value)
+	if Value then
+		TeleportService:Teleport(game.PlaceId, Player)
+	end
+end)
+
+CreateToggle("Server Hop", false, function(Value)
+	if Value then
+		local success, servers = pcall(function()
+			return HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?limit=100"))
+		end)
+		if success and servers and #servers.data > 0 then
+			TeleportService:TeleportToPlaceInstance(game.PlaceId, servers.data[math.random(1, #servers.data)].id, Player)
+		end
+	end
+end)
+
+CreateSection("Window")
+CreateToggle("Transparency", false, function(Value)
+	if Value then Main.BackgroundTransparency = 0.3 else Main.BackgroundTransparency = 0.12 end
+end)
+
+-- FPS UPDATER
+RunService.RenderStepped:Connect(function(deltaTime)
+	if FPSDisplay and FPSLabel then
+		FPSCount = FPSCount + 1
+		FPSTimer = FPSTimer + deltaTime
+		if FPSTimer >= 1 then
+			FPSLabel.Text = "FPS: " .. FPSCount
+			FPSCount = 0
+			FPSTimer = 0
+		end
+	end
+end)
+
+-- VERIFICAÇÃO DE KEY
+local function VerifyKey()
+	local inputKey = KeyInput.Text
+	if inputKey == "" then
+		ErrorLabel.Text = "Enter a key!"
+		ErrorLabel.Visible = true
+		return
+	end
+	if table.find(ValidKeys, inputKey) then
+		KeyScreen.Visible = false
+		OpenButton.Visible = true
+		Main.Visible = true
+		ErrorLabel.Visible = false
+		KeyInput.Text = ""
+	else
+		ErrorLabel.Text = "Invalid key!"
+		ErrorLabel.Visible = true
+	end
+end
+
+VerifyButton.MouseButton1Click:Connect(VerifyKey)
+KeyInput.FocusLost:Connect(function(enterPressed) if enterPressed then VerifyKey() end end)
+
+-- ABRIR/FECHAR
+Close.MouseButton1Click:Connect(function() Main.Visible = false end)
+OpenButton.MouseButton1Click:Connect(function() Main.Visible = not Main.Visible end)
+
+print("Eny's Hub 3.0 loaded successfully!")
